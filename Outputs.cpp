@@ -22,6 +22,150 @@ std::string get_timestamp()
     return std::string(timestamp);
 }
 
+void write_pointcloud_shapes(
+    PointCloud pc,
+    std::string file_path,
+    MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes,
+	RansacShapeDetector::Options ransacOptions
+    )
+{
+    std::array<std::vector<float>, 3> coord;
+    for(int c = 0; c < 3; ++c)
+        coord[c].reserve(pc.size());
+    std::array<std::vector<int>, 2> labels;
+    for(int c = 0; c < 2; ++c)
+        labels[c].reserve(pc.size());
+    std::vector<std::vector<int>> facesOut;
+
+    int i_point = pc.size();
+    int N_shapes_to_save = 1000;
+	for(int i = 0; i < std::min(int(shapes.size()), N_shapes_to_save); ++i)
+	{
+		std::string shape_desc;
+		shapes[i].first->Description(&shape_desc);
+		int shape_ind = std::find(EXPECTED_SHAPES.begin(), EXPECTED_SHAPES.end(), shape_desc) - EXPECTED_SHAPES.begin();
+
+
+        MiscLib::Vector< int > componentsImg;
+        MiscLib::Vector< std::pair< int, size_t > > labels_b;
+        MiscLib::Vector< size_t > indices;
+        indices.reserve(shapes[i].second);
+        for(int j = 0; j < shapes[i].second; ++j)
+        {
+            --i_point;
+            indices.push_back(i_point);
+        }
+
+        BitmapInfo bitmapInfo;
+        BitmapPrimitiveShape * bps = dynamic_cast<BitmapPrimitiveShape *>(shapes[i].first.Ptr());
+        bps->AllConnectedComponents( pc, ransacOptions.m_bitmapEpsilon , bitmapInfo, &indices, componentsImg, labels_b, false );
+        // bps->BuildBitmap(pc, &ransacOptions.m_bitmapEpsilon, indices.begin(), indices.end(), &bitmapInfo.params,
+            // &bitmapInfo.bbox, &bitmapInfo.bitmap, &bitmapInfo.uextent, &bitmapInfo.vextent, &bitmapInfo.bmpIdx);
+        // MiscLib::Vector< size_t > bitmap = bitmapInfo.bmpIdx;
+
+
+        size_t idx_point = coord[0].size();
+        MiscLib::Vector<size_t> bitmap_indices(componentsImg.size(), std::numeric_limits<size_t>::max());
+        size_t rl = bitmapInfo.uextent;  // row length, used many times for offset in the 2D array
+
+        for(size_t v = 0; v < bitmapInfo.vextent; ++v)
+        {
+            for (size_t u = 0; u < bitmapInfo.uextent; ++u)
+            {
+                if (componentsImg[u + v * rl] > 0)
+                {
+                    bitmap_indices[u + v * rl] = idx_point;
+                    ++idx_point;
+
+                    Vec3f p;
+                    Vec3f n;
+                    bps->InSpace(u, v, ransacOptions.m_bitmapEpsilon, bitmapInfo.bbox, bitmapInfo.uextent, bitmapInfo.vextent, &p, &n);
+                    for (int c = 0; c < 3; ++c)
+                    {
+                        coord[c].push_back(p[c]);
+                    }
+                    labels[0].push_back(i);
+                    labels[1].push_back(shape_ind);
+                }
+            }
+        }
+        for(size_t v = 0; v < bitmapInfo.vextent - 1; ++v)
+        {
+            for (size_t u = 0; u < bitmapInfo.uextent - 1; ++u)
+            {
+                if (componentsImg[u + v * rl] > 0)
+                {
+                    if (componentsImg[u + 1 + v * rl] > 0)
+                    {
+                        if (componentsImg[u + (v + 1) * rl] > 0)
+                        {
+                            std::vector<int> new_face = {
+                                bitmap_indices[u + v * rl],
+                                bitmap_indices[u + 1 + v * rl],
+                                bitmap_indices[u + (v + 1) * rl]
+                            };
+                            facesOut.push_back(new_face);
+
+                            if (componentsImg[u + 1 + (v + 1) * rl] > 0)
+                            {
+                                std::vector<int> new_face = {
+                                    bitmap_indices[u + 1 + v * rl],
+                                    bitmap_indices[u + 1 + (v + 1) * rl],
+                                    bitmap_indices[u + (v + 1) * rl]
+                                };
+                                facesOut.push_back(new_face);
+                            }
+                        }
+                        else if(componentsImg[u + 1 + (v + 1) * rl] > 0)
+                        {
+                            std::vector<int> new_face = {
+                                bitmap_indices[u + v * rl],
+                                bitmap_indices[u + 1 + v * rl],
+                                bitmap_indices[u + 1 + (v + 1) * rl]
+                            };
+                            facesOut.push_back(new_face);
+                        }
+                    }
+                    else if (componentsImg[u + (v + 1) * rl] > 0 and componentsImg[u + 1 + (v + 1) * rl] > 0)
+                    {
+                        std::vector<int> new_face = {
+                            bitmap_indices[u + v * rl],
+                            bitmap_indices[u + 1 + (v + 1) * rl],
+                            bitmap_indices[u + (v + 1) * rl]
+                        };
+                        facesOut.push_back(new_face);
+                    }
+                }
+                else if (componentsImg[u + 1 + v * rl] > 0 and
+                         componentsImg[u + 1 + (v + 1) * rl] and
+                         componentsImg[u + (v + 1) * rl])
+                {
+                    std::vector<int> new_face = {
+                        bitmap_indices[u + 1 + v * rl],
+                        bitmap_indices[u + 1 + (v + 1) * rl],
+                        bitmap_indices[u + (v + 1) * rl]
+                    };
+                    facesOut.push_back(new_face);
+                }
+            }
+        }
+
+	}
+
+    happly::PLYData plyOut;
+    plyOut.addElement("vertex", coord[0].size());
+    plyOut.getElement("vertex").addProperty<float>("x", coord[0]);
+    plyOut.getElement("vertex").addProperty<float>("y", coord[1]);
+    plyOut.getElement("vertex").addProperty<float>("z", coord[2]);
+    plyOut.getElement("vertex").addProperty<int>("shape_ind", labels[0]);
+    plyOut.getElement("vertex").addProperty<int>("shape_type", labels[1]);
+
+    plyOut.addElement("face", facesOut.size());
+    plyOut.getElement("face").addListProperty<int>("vertex_indices", facesOut);
+
+    plyOut.write(file_path);
+}
+
 void write_pointcloud(
     PointCloud pc,
     std::string file_path,

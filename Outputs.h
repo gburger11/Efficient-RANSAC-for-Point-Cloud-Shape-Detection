@@ -19,6 +19,13 @@ void write_pointcloud(
     MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes
     );
 
+void write_pointcloud_shapes(
+    PointCloud pc,
+    std::string file_path,
+    MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes,
+    RansacShapeDetector::Options ransacOptions
+    );
+
 class TimeRecorder
 {
 public:
