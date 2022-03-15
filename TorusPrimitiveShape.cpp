@@ -77,11 +77,11 @@ unsigned int TorusPrimitiveShape::ConfidenceTests(unsigned int numTests,
 
 void TorusPrimitiveShape::Description(std::string *s) const
 {
-	std::ostringstream ostr;
-	ostr << "Torus (minor=" << m_torus.MinorRadius()
-		<< " major=" << m_torus.MajorRadius() << ")";
-	*s = ostr.str();
-//	*s = "Torus";
+	// std::ostringstream ostr;
+	// ostr << "Torus (minor=" << m_torus.MinorRadius()
+		// << " major=" << m_torus.MajorRadius() << ")";
+	// *s = ostr.str();
+    *s = "Torus";
 }
 
 bool TorusPrimitiveShape::Fit(const PointCloud &pc, float epsilon,

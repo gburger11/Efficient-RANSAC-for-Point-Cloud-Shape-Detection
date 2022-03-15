@@ -1,4 +1,5 @@
 #include "PointCloud.h"
+#include "happly.h"
 #include <MiscLib/Vector.h>
 #include <iostream>
 #include <iterator>
@@ -136,6 +137,23 @@ PointCloud::PointCloud(Point *points, unsigned int s)
 	std::copy(points, points + s, std::back_inserter(*this));
 }
 
+PointCloud::PointCloud(std::string file_path)
+{
+    happly::PLYData plyIn(file_path);
+
+    std::vector<std::array<double, 3>> vertices = plyIn.getVertexPositions();
+    for (auto& vertex: vertices)
+    {
+        push_back(Point(Vec3f((float) vertex[0], (float) vertex[1], (float) vertex[2])));
+    }
+    for (size_t i = 0; i < size(); ++i)
+        at(i).index = i;
+    if (plyIn.hasElement("face"))
+    {
+        m_faces = plyIn.getElement("face").getListProperty<int>("vertex_indices");
+    }
+}
+
 void PointCloud::reset(size_t s)
 {
 	resize(s);
@@ -152,6 +170,12 @@ float *PointCloud::getBbox () const
 	m_max.getValue(bbox[1], bbox[3], bbox[5]);
 
 	return bbox;
+}
+
+void PointCloud::adjustBBoxToPoints()
+{
+    m_min = Vec3f(get_min(0), get_min(1), get_min(2));
+    m_max = Vec3f(get_max(0), get_max(1), get_max(2));
 }
 
 void PointCloud::GetCurrentBBox(Vec3f *min, Vec3f *max) const

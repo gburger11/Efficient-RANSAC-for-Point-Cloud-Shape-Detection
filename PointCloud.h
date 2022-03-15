@@ -7,6 +7,7 @@
 #include <cmath>
 #include <MiscLib/Vector.h>
 #include <limits>
+#include <vector>
 #include <GfxTL/VectorXD.h>
 #include "basic.h"
 #include <MiscLib/Vector.h>
@@ -24,9 +25,7 @@ struct DLL_LINKAGE Point {
 	typedef float value_type;
 	Vec3f pos;
 	Vec3f normal;
-#ifdef POINTSWITHINDEX
 	size_t index;
-#endif
 	//unsigned int meshFaceIndex;
 	Point() {}
 	Point(const Vec3f &Pos) {/*index = -1;*/ pos = Pos; normal = Vec3f(0,0,0); }
@@ -63,6 +62,7 @@ class DLL_LINKAGE PointCloud
 public:
 	PointCloud();
 	PointCloud(Point *points, unsigned int size);
+	PointCloud(std::string file_path);
 	PointCloud &operator+=(const PointCloud &other)
 	{
 		size_t oldSize = size();
@@ -76,12 +76,21 @@ public:
 			std::max(m_max[2], other.m_max[2]));
 		return *this;
 	}
-	void swapPoints (unsigned int i, unsigned int j) 
+	void swapPoints (unsigned int i, unsigned int j)
 	{
 		std::swap(at(i), at(j));
 	}
 	void calcNormals( float radius, unsigned int kNN = 20, unsigned int maxTries = 100 );
 	void reset(size_t s = 0);
+	void adjustBBoxToPoints();
+    float get_min(size_t dim)
+    {
+        return std::min_element(begin(), end(), [&dim](const Point p1, const Point p2){return p1[dim] < p2[dim];})[0][dim];
+    }
+    float get_max(size_t dim)
+    {
+        return std::max_element(begin(), end(), [&dim](const Point p1, const Point p2){return p1[dim] < p2[dim];})[0][dim];
+    }
 	void setBBox (Vec3f bbl, float size) { m_min = bbl; m_max = m_min + Vec3f(size,size,size); }
 	void setBBox (Vec3f min, Vec3f max) { m_min = min; m_max = max; }
 	void widenBBox (float delta) { Vec3f d(delta,delta,delta); m_min -=d; m_max += d; }
@@ -90,6 +99,7 @@ public:
 	   Vec3f diff = m_max - m_min;
 	   return std::max(std::max(diff[0], diff[1]), diff[2]);
 	}
+    std::vector<std::vector<int>> const& getFaces() const { return m_faces ; }
 	const Vec3f &getOffset() const { return m_min; }
 	float *getBbox () const;
 	// returns a transfromed bbox if m_transformed is true
@@ -102,6 +112,7 @@ public:
 
 private:
    Vec3f m_min, m_max;
+   std::vector<std::vector<int>> m_faces;
 };
 
 #endif
