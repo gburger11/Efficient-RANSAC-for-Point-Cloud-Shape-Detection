@@ -1,6 +1,8 @@
 // Taken from https://github.com/ihmcrobotics/ihmc-open-robotics-software/blob/5f5345ea78f681c1ca815bb1539041b5d0ab54d0/ihmc-sensor-processing/csrc/ransac_schnabel/main.cpp
 
+#include <happly.h>
 #include <PointCloud.h>
+#include <Outputs.h>
 #include <RansacShapeDetector.h>
 #include <PlanePrimitiveShapeConstructor.h>
 #include <CylinderPrimitiveShapeConstructor.h>
@@ -8,59 +10,69 @@
 #include <ConePrimitiveShapeConstructor.h>
 #include <TorusPrimitiveShapeConstructor.h>
 
-#include<iostream>
+#include <iostream>
+#include <fstream>
+#include <time.h>
+#include <chrono>
 
 
 
 int main()
 {
-	PointCloud pc;
+    //////////////////////////////////////////
+    // Create Pointcloud
+    //////////////////////////////////////////
+    outputs::TimeRecorder time_record;
 
-	// fill or load point cloud from file
-	for(int i=0;i<100;i++){
-		for(int j=0;j<100;j++){
-			pc.push_back(Point(Vec3f(i,j,0)));
-			if(fabs((i-50)*(i-50)+(j-50)*(j-50)-50)<5){
-				//std::cout << i << "," << j << "\n";
-				pc.push_back(Point(Vec3f(i,j,1)));
-				pc.push_back(Point(Vec3f(i,j,2)));
-				pc.push_back(Point(Vec3f(i,j,3)));
-			}
-		}
-	}
-	
-	// set the bbox in pc
-	pc.setBBox(Vec3f(-100,-100,-100), Vec3f(100,100,100));
-	//void calcNormals( float radius, unsigned int kNN = 20, unsigned int maxTries = 100 );
-	pc.calcNormals(3);
+    std::string const object = "Apple";
+    // std::string const object = "Oil_pump";
+    // std::string const object = "Santa";
+    // std::string const object = "master_cylinder";
+    // std::string const object = "indoor_scan";
 
+    PointCloud pc("../../data/" + object +  ".ply");
+    pc.adjustBBoxToPoints();
+
+    time_record.record("read");
+
+    float normal_radius = 0.01;
+    pc.calcNormals(normal_radius * pc.getScale());
+
+    time_record.record("normals");
 
 	std::cout << "added " << pc.size() << " points" << std::endl;
 
+    //////////////////////////////////////////
+    // Actual RANSAC
+    //////////////////////////////////////////
+
 	RansacShapeDetector::Options ransacOptions;
-	ransacOptions.m_epsilon = .2f * pc.getScale(); // set distance threshold to .01f of bounding box width
+	float eps = 0.002f;
+	ransacOptions.m_epsilon = eps * pc.getScale(); // set distance threshold to .01f of bounding box width
 		// NOTE: Internally the distance threshold is taken as 3 * ransacOptions.m_epsilon!!!
-	ransacOptions.m_bitmapEpsilon = .02f * pc.getScale(); // set bitmap resolution to .02f of bounding box width
+	float b_eps = 0.01f;
+	ransacOptions.m_bitmapEpsilon = b_eps * pc.getScale(); // set bitmap resolution to .02f of bounding box width
 		// NOTE: This threshold is NOT multiplied internally!
-	ransacOptions.m_normalThresh = .9f; // this is the cos of the maximal normal deviation
-	ransacOptions.m_minSupport = 10; // this is the minimal numer of points required for a primitive
+    // ransacOptions.m_normalThresh = .9f; // this is the cos of the maximal normal deviation
+    ransacOptions.m_normalThresh = .86f; // this is the cos of the maximal normal deviation
+	// ransacOptions.m_normalThresh = .82f; // this is the cos of the maximal normal deviation
+	ransacOptions.m_minSupport = 100; // this is the minimal number of points required for a primitive
 	ransacOptions.m_probability = .001f; // this is the "probability" with which a primitive is overlooked
 
 	RansacShapeDetector detector(ransacOptions); // the detector object
 
 	// set which primitives are to be detected by adding the respective constructors
 	detector.Add(new PlanePrimitiveShapeConstructor());
-	detector.Add(new CylinderPrimitiveShapeConstructor());
-	
-	/*
-	detector.Add(new SpherePrimitiveShapeConstructor());
-	detector.Add(new CylinderPrimitiveShapeConstructor());
-	detector.Add(new ConePrimitiveShapeConstructor());
-	detector.Add(new TorusPrimitiveShapeConstructor());
-	*/
+    detector.Add(new CylinderPrimitiveShapeConstructor());
+    detector.Add(new SpherePrimitiveShapeConstructor());
+    detector.Add(new ConePrimitiveShapeConstructor());
+    detector.Add(new TorusPrimitiveShapeConstructor());
+
+	std::cout << "Problem defined" << std::endl;
 
 	MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes; // stores the detected shapes
-	size_t remaining = detector.Detect(pc, 0, pc.size(), &shapes); // run detection
+	// size_t remaining = 0;
+    size_t remaining = detector.Detect(pc, 0, pc.size(), &shapes); // run detection
 		// returns number of unassigned points
 		// the array shapes is filled with pointers to the detected shapes
 		// the second element per shapes gives the number of points assigned to that primitive (the support)
@@ -69,6 +81,8 @@ int main()
 		// the points of shape i are found in the range
 		// [ pc.size() - \sum_{j=0..i} shapes[j].second, pc.size() - \sum_{j=0..i-1} shapes[j].second )
 
+    time_record.record("detection");
+
 	std::cout << "remaining unassigned points " << remaining << std::endl;
 	for(int i=0;i<shapes.size();i++)
 	{
@@ -76,4 +90,38 @@ int main()
 		shapes[i].first->Description(&desc);
 		std::cout << "shape " << i << " consists of " << shapes[i].second << " points, it is a " << desc << std::endl;
 	}
+
+    //////////////////////////////////////////
+    // Save results in PLY file
+    //////////////////////////////////////////
+
+    std::string timestamp = outputs::get_timestamp();
+
+    outputs::write_pointcloud(
+        pc,
+        "out_" + object + "_" + timestamp + ".ply",
+        shapes
+    );
+
+    outputs::write_pointcloud_shapes(
+        pc,
+        "out_" + object + "_" + timestamp + "_shapes.ply",
+        shapes,
+        ransacOptions
+    );
+
+    time_record.record("write");
+
+    outputs::write_metadata(
+        "out_" + object + "_" + timestamp + ".yaml",
+        remaining,
+        shapes,
+        timestamp,
+        object,
+        {{"cloud_scale", pc.getScale()}, {"eps", eps}, {"b_eps", b_eps}, {"normal_radius", normal_radius}},
+        ransacOptions,
+        time_record
+    );
+
+    return 0;
 }
