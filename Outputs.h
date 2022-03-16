@@ -13,6 +13,12 @@ namespace outputs
 {
 std::string get_timestamp();
 
+void write_pointcloud_projected(
+    PointCloud pc,
+    std::string file_path,
+    MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes
+    );
+
 void write_pointcloud(
     PointCloud pc,
     std::string file_path,

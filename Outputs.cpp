@@ -146,7 +146,7 @@ namespace outputs
         plyOut.write(file_path);
     }
 
-    void write_pointcloud(
+    void write_pointcloud_projected(
                           PointCloud pc,
                           std::string file_path,
                           MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes
@@ -170,9 +170,11 @@ namespace outputs
             for(int j = 0; j < shapes[i].second; ++j)
             {
                 --i_point;
+                Vec3f projected_point;
+                shapes[i].first->Project(pc[i_point], &projected_point);
                 for (int c = 0; c < 3; ++c)
                 {
-                    coord[c].push_back(pc[i_point][c]);
+                    coord[c].push_back(projected_point[c]);
                 }
                 labels[0].push_back(i);
                 labels[1].push_back(shape_ind);
@@ -223,161 +225,6 @@ namespace outputs
         }
 
         plyOut.write(file_path);
-    }
-
-    TimeRecorder::TimeRecorder()
-    {
-        times_.push_back(std::chrono::high_resolution_clock::now());
-    }
-
-    void TimeRecorder::record(std::string label)
-    {
-        times_.push_back(std::chrono::high_resolution_clock::now());
-        time_labels_.push_back(label);
-    }
-
-    void write_metadata(
-                        std::string file_path,
-                        int remaining,
-                        MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > const& shapes,
-                        std::string timestamp,
-                        std::string object,
-                        std::unordered_map<std::string, float> misc_params,
-                        RansacShapeDetector::Options ransacOptions,
-                        TimeRecorder const& time_record
-                       )
-    {
-        std::ofstream yamlOut;
-        yamlOut.open(file_path);
-        // Global data
-        yamlOut << "global:" << std::endl;
-        yamlOut << "  time: " << timestamp << std::endl;
-        yamlOut << "  object: " << object << std::endl;
-
-        // Results
-        yamlOut << "results:" << std::endl;
-        yamlOut << "  remaining: " << remaining << std::endl;
-        yamlOut << "  n_shapes: " << shapes.size() << std::endl;
-        yamlOut << "  shapes: " << std::endl;
-        for(int i = 0; i < shapes.size(); i++)
-        {
-            std::string desc;
-            shapes[i].first->Description(&desc);
-            yamlOut << "    - index: " << i << std::endl;
-            yamlOut << "      type: " << desc << std::endl;
-            yamlOut << "      num_points: " << shapes[i].second << std::endl;
-            if (PlanePrimitiveShape const* pps = dynamic_cast<PlanePrimitiveShape const*>(shapes[i].first.Ptr()))
-            {
-                Plane const& plane = pps->Internal();
-                yamlOut << "      parameters:" << std::endl;
-                yamlOut << "        point:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << plane.getPosition()[c] << std::endl;
-                }
-                yamlOut << "        normal:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << plane.getNormal()[c] << std::endl;
-                }
-            }
-            else if (CylinderPrimitiveShape const* cps = dynamic_cast<CylinderPrimitiveShape const*>(shapes[i].first.Ptr()))
-            {
-                Cylinder const& cylinder = cps->Internal();
-                yamlOut << "      parameters:" << std::endl;
-                yamlOut << "        axis_point:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << cylinder.AxisPosition()[c] << std::endl;
-                }
-                yamlOut << "        axis_direction:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << cylinder.AxisDirection()[c] << std::endl;
-                }
-                yamlOut << "        radius: " << cylinder.Radius() << std::endl;
-            }
-            else if (SpherePrimitiveShape const* sps = dynamic_cast<SpherePrimitiveShape const*>(shapes[i].first.Ptr()))
-            {
-                Sphere const& sphere = sps->Internal();
-                yamlOut << "      parameters:" << std::endl;
-                yamlOut << "        center:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << sphere.Center()[c] << std::endl;
-                }
-                yamlOut << "        radius: " << sphere.Radius() << std::endl;
-            }
-            else if (ConePrimitiveShape const* cps = dynamic_cast<ConePrimitiveShape const*>(shapes[i].first.Ptr()))
-            {
-                Cone const& cone = cps->Internal();
-                yamlOut << "      parameters:" << std::endl;
-                yamlOut << "        apex:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << cone.Center()[c] << std::endl;
-                }
-                yamlOut << "        axis_direction:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << cone.AxisDirection()[c] << std::endl;
-                }
-                yamlOut << "        angle: " << cone.Angle() << std::endl;
-            }
-            else if (TorusPrimitiveShape const* tps = dynamic_cast<TorusPrimitiveShape const*>(shapes[i].first.Ptr()))
-            {
-                Torus const& torus = tps->Internal();
-                yamlOut << "      parameters:" << std::endl;
-                yamlOut << "        center:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << torus.Center()[c] << std::endl;
-                }
-                yamlOut << "        normal:" << std::endl;
-                for (size_t c = 0; c < 3; ++c)
-                {
-                    yamlOut << "          - " << torus.AxisDirection()[c] << std::endl;
-                }
-                yamlOut << "        minor_radius: " << torus.MinorRadius() << std::endl;
-                yamlOut << "        major_radius: " << torus.MajorRadius() << std::endl;
-            }
-            else
-            {
-                yamlOut << "      parameters: null" << std::endl;
-            }
-        }
-
-        // Parameters
-        yamlOut << "parameters:" << std::endl;
-        for (auto const& mp: misc_params)
-        {
-            yamlOut << "  " << mp.first << ": " << mp.second << std::endl;
-        }
-        yamlOut << "  epsilon_abs: " << ransacOptions.m_epsilon << std::endl;
-        yamlOut << "  normal_thrashold: " << ransacOptions.m_normalThresh << std::endl;
-        yamlOut << "  bitmap_epsilon_abs: " << ransacOptions.m_bitmapEpsilon << std::endl;
-        yamlOut << "  min_support: " << ransacOptions.m_minSupport << std::endl;
-        yamlOut << "  probability: " << ransacOptions.m_probability << std::endl;
-
-        // Times
-        yamlOut << "timings:" << std::endl;
-        yamlOut << "  total: " <<
-            (std::chrono::duration<double>(time_record.times_.back() - time_record.times_.front())).count() << std::endl;
-        for (int i = 0; i < time_record.times_.size() - 1; ++i)
-        {
-            yamlOut << "  " << time_record.time_labels_[i] <<  ": " <<
-                (std::chrono::duration<double>(time_record.times_[i + 1] - time_record.times_[i])).count() << std::endl;
-        }
-
-        // Results
-        yamlOut << "format:" << std::endl;
-        yamlOut << "  shapes: " << std::endl;
-        for(int i = 0; i < EXPECTED_SHAPES.size(); i++)
-        {
-            yamlOut << "    - " << EXPECTED_SHAPES[i] << std::endl;
-        }
-
-        yamlOut.close();
     }
 
     void write_pointcloud(

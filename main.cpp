@@ -103,6 +103,12 @@ int main()
         shapes
     );
 
+    outputs::write_pointcloud_projected(
+        pc,
+        "out_" + object + "_" + timestamp + "_proj.ply",
+        shapes
+    );
+
     outputs::write_pointcloud_shapes(
         pc,
         "out_" + object + "_" + timestamp + "_shapes.ply",
