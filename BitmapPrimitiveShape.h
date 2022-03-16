@@ -68,6 +68,11 @@ public:
 	virtual void PreWrapBitmap(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
 		float epsilon, size_t uextent, size_t vextent,
 		MiscLib::Vector< char > *bmp) const;
+	virtual void PreWrapBitmap(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
+		float epsilon, size_t uextent, size_t vextent,
+		MiscLib::Vector< char > *bmp,
+        MiscLib::Vector< size_t > *bmpNPoints,
+        MiscLib::Vector< std::pair< float, float > > *bmpMean) const;
 	virtual void WrapBitmap(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
 		float epsilon, bool *uwrap, bool *vwrap) const = 0;
 	virtual void WrapComponents(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
@@ -89,6 +94,14 @@ public:
 		GfxTL::AABox< GfxTL::Vector2Df > *bbox,
 		MiscLib::Vector< char > *bitmap, size_t *uextent, size_t *vextent,
 		MiscLib::Vector< size_t > *bmpIdx, size_t border) const;
+	template< class IteratorT >
+	void BuildBitmap(const PointCloud &pc, float *epsilon, IteratorT begin,
+		IteratorT end, MiscLib::Vector< std::pair< float, float > > *params,
+		GfxTL::AABox< GfxTL::Vector2Df > *bbox,
+		MiscLib::Vector< char > *bitmap, size_t *uextent, size_t *vextent,
+		MiscLib::Vector< size_t > *bmpIdx,
+        MiscLib::Vector< size_t > *bmpNPoints, MiscLib::Vector< std::pair< float, float > > *bmpMean) const;
+
 	void BuildPolygons(const PointCloud &pc, float epsilon, size_t begin,
 		size_t end, GfxTL::AABox< GfxTL::Vector2Df > *bbox,
 		size_t *uextent, size_t *vextent,
@@ -144,6 +157,67 @@ void BitmapPrimitiveShape::BuildBitmap(const PointCloud &pc, float *epsilon,
 		bmpParam.first = GfxTL::Math< int >::Clamp(bmpParam.first, 0, *uextent - 1);
 		bmpParam.second = GfxTL::Math< int >::Clamp(bmpParam.second, 0, *vextent - 1);
 		(*bitmap)[(*bmpIdx)[i] = bmpParam.first	+ bmpParam.second * (*uextent)] = true;
+	}
+}
+
+template< class IteratorT >
+void BitmapPrimitiveShape::BuildBitmap(const PointCloud &pc, float *epsilon,
+	IteratorT begin, IteratorT end, MiscLib::Vector< std::pair< float, float > > *params,
+	GfxTL::AABox< GfxTL::Vector2Df > *bbox, MiscLib::Vector< char > *bitmap,
+	size_t *uextent, size_t *vextent, MiscLib::Vector< size_t > *bmpIdx,
+    MiscLib::Vector< size_t > *bmpNPoints, MiscLib::Vector< std::pair< float, float > > *bmpMean
+	) const
+{
+	int size = end - begin;
+	params->resize(size);
+	// compute parameters and extent
+	Parameters(GfxTL::IndexIterate(begin, pc.begin()),
+		GfxTL::IndexIterate(end, pc.begin()), params);
+	bbox->Min() = GfxTL::Vector2Df(std::numeric_limits< float >::infinity(),
+		std::numeric_limits< float >::infinity());
+	bbox->Max() = -bbox->Min();
+	for(size_t i = 0; i < (size_t)size; ++i)
+	{
+		if((*params)[i].first < bbox->Min()[0])
+			bbox->Min()[0] = (*params)[i].first;
+		if((*params)[i].first > bbox->Max()[0])
+			bbox->Max()[0] = (*params)[i].first;
+		if((*params)[i].second < bbox->Min()[1])
+			bbox->Min()[1] = (*params)[i].second;
+		if((*params)[i].second > bbox->Max()[1])
+			bbox->Max()[1] = (*params)[i].second;
+	}
+	// bbox gives the bounding box in parameter space
+	// we can now set up the bitmap
+	const_cast< BitmapPrimitiveShape * >(this)->BitmapExtent(*epsilon, bbox, params,
+		uextent, vextent);
+	if(*uextent < 2)
+		*uextent = 2;
+	if(*vextent < 2)
+		*vextent = 2;
+	bitmap->resize((*uextent) * (*vextent));
+	std::fill(bitmap->begin(), bitmap->end(), false);
+	bmpNPoints->resize((*uextent) * (*vextent));
+	std::fill(bmpNPoints->begin(), bmpNPoints->end(), 0);
+	bmpMean->resize((*uextent) * (*vextent));
+	std::fill(bmpMean->begin(), bmpMean->end(), std::make_pair< float, float >(0., 0.));
+	// set all true bits in bitmap
+	bmpIdx->resize(params->size());
+	//#pragma omp parallel for schedule(static)
+	for(int i = 0; i < size; ++i)
+	{
+		std::pair< int, int > bmpParam;
+		InBitmap((*params)[i], *epsilon, *bbox, *uextent, *vextent, &bmpParam);
+		// clamp bitmap coords
+		bmpParam.first = GfxTL::Math< int >::Clamp(bmpParam.first, 0, *uextent - 1);
+		bmpParam.second = GfxTL::Math< int >::Clamp(bmpParam.second, 0, *vextent - 1);
+		size_t idx_in_bmp = bmpParam.first	+ bmpParam.second * (*uextent);
+        (*bmpIdx)[i] = idx_in_bmp;
+		(*bitmap)[idx_in_bmp] = true;
+		float x_mean = ((*bmpNPoints)[idx_in_bmp] * (*bmpMean)[idx_in_bmp].first + (*params)[i].first)   / ((*bmpNPoints)[idx_in_bmp] + 1);
+		float y_mean = ((*bmpNPoints)[idx_in_bmp] * (*bmpMean)[idx_in_bmp].second + (*params)[i].second) / ((*bmpNPoints)[idx_in_bmp] + 1);
+		(*bmpMean)[idx_in_bmp] = std::make_pair<float, float>(std::move(x_mean), std::move(y_mean));
+		(*bmpNPoints)[idx_in_bmp]++;
 	}
 }
 

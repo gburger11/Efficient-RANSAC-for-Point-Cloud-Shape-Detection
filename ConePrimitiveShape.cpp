@@ -401,6 +401,32 @@ void ConePrimitiveShape::InBitmap(const std::pair< float, float > &param,
 
 void ConePrimitiveShape::PreWrapBitmap(
 	const GfxTL::AABox< GfxTL::Vector2Df > &bbox, float epsilon,
+	size_t uextent, size_t vextent, MiscLib::Vector< char > *bmp,
+    MiscLib::Vector< size_t > *bmpNPoints, MiscLib::Vector< std::pair< float, float > > *bmpMean
+	) const
+{
+	if(m_cone.Angle() >= float(M_PI / 4))
+		return;
+	// for wrapping we copy the first pixel to the last one in each v column
+	for(size_t u = 0; u < uextent; ++u)
+	{
+		// determine the coordinates of the last pixel in the column
+		// get the radius of the column
+		float r = m_cone.RadiusAtLength(u * epsilon + bbox.Min()[0]);
+		size_t v = std::floor((2 * float(M_PI) * r - bbox.Min()[1]) / epsilon) + 1;
+		if(v >= vextent)
+			continue;
+		if((*bmp)[u])
+        {
+			(*bmp)[v * uextent + u] = (*bmp)[u]; // do the wrap
+			(*bmpNPoints)[v * uextent + u] = (*bmpNPoints)[u]; // do the wrap
+			(*bmpMean)[v * uextent + u] = (*bmpMean)[u]; // do the wrap
+        }
+	}
+}
+
+void ConePrimitiveShape::PreWrapBitmap(
+	const GfxTL::AABox< GfxTL::Vector2Df > &bbox, float epsilon,
 	size_t uextent, size_t vextent, MiscLib::Vector< char > *bmp) const
 {
 	if(m_cone.Angle() >= float(M_PI / 4))

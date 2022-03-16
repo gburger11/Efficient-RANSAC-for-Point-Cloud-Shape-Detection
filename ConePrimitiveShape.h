@@ -74,6 +74,10 @@ public:
 	void PreWrapBitmap(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
 		float epsilon, size_t uextent, size_t vextent,
 		MiscLib::Vector< char > *bmp) const;
+	void PreWrapBitmap(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
+		float epsilon, size_t uextent, size_t vextent,
+		MiscLib::Vector< char > *bmp,
+        MiscLib::Vector< size_t > *bmpNPoints, MiscLib::Vector< std::pair< float, float > > *bmpMean) const;
 	void WrapBitmap(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
 		float epsilon, bool *uwrap, bool *vwrap) const;
 	void WrapComponents(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,

@@ -16,6 +16,15 @@ void BitmapPrimitiveShape::PreWrapBitmap(
 	// the default case is: do nothing
 }
 
+void BitmapPrimitiveShape::PreWrapBitmap(
+	const GfxTL::AABox< GfxTL::Vector2Df > &bbox, float epsilon,
+	size_t uextent, size_t vextent, MiscLib::Vector< char > *bmp,
+    MiscLib::Vector< size_t > *bmpNPoints, MiscLib::Vector< std::pair< float, float > > *bmpMean
+	) const
+{
+	// the default case is: do nothing
+}
+
 void BitmapPrimitiveShape::WrapComponents(
 	const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
 	float epsilon, size_t uextent, size_t vextent,

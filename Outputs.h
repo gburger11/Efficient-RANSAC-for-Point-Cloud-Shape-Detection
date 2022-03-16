@@ -26,6 +26,10 @@ void write_pointcloud_shapes(
     RansacShapeDetector::Options ransacOptions
     );
 
+void extract_faces(MiscLib::Vector< char >  const& bitmap, MiscLib::Vector<size_t> const& bitmap_indices,
+                   size_t i1, size_t i2, size_t i3, size_t i4,
+                   std::vector<std::vector<int>>& facesOut);
+
 class TimeRecorder
 {
 public:

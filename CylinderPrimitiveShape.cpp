@@ -372,6 +372,23 @@ void CylinderPrimitiveShape::WrapBitmap(
 }
 
 void CylinderPrimitiveShape::PreWrapBitmap(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
+	float epsilon, size_t uextent, size_t vextent, MiscLib::Vector< char > *bmp,
+    MiscLib::Vector< size_t > *bmpNPoints, MiscLib::Vector< std::pair< float, float > > *bmpMean
+	) const
+{	
+	// wraps the bitmpap around the v-axis
+	// note: we do not check, if the cylinder is really wrapped around !
+	//		 Use WrapBitmap for this check
+	for (int i=0; i < uextent; i++)
+	{
+		char t = (*bmp)[i];
+		bmp->push_back(t);
+		bmpNPoints->push_back((*bmpNPoints)[i]);
+		bmpMean->push_back((*bmpMean)[i]);
+	}
+}
+
+void CylinderPrimitiveShape::PreWrapBitmap(const GfxTL::AABox< GfxTL::Vector2Df > &bbox,
 	float epsilon, size_t uextent, size_t vextent, MiscLib::Vector< char > *bmp) const
 {	
 	// wraps the bitmpap around the v-axis
