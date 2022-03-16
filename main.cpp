@@ -24,10 +24,13 @@ int main()
     //////////////////////////////////////////
     outputs::TimeRecorder time_record;
 
-    std::string const object = "Apple";
-    // std::string const object = "Oil_pump";
+    // std::string const object = "Apple";
     // std::string const object = "Santa";
+    // std::string const object = "Buddha";
+    // std::string const object = "Donkey";
+    // std::string const object = "Oil_pump";
     // std::string const object = "master_cylinder";
+    std::string const object = "Lille_street_small";
     // std::string const object = "indoor_scan";
 
     PointCloud pc("../../data/" + object +  ".ply");
@@ -36,7 +39,7 @@ int main()
     time_record.record("read");
 
     float normal_radius = 0.01;
-    pc.calcNormals(normal_radius * pc.getScale());
+    float bitmap_precision = pc.calcNormalsAndBEps(normal_radius * pc.getScale());
 
     time_record.record("normals");
 
@@ -47,11 +50,12 @@ int main()
     //////////////////////////////////////////
 
 	RansacShapeDetector::Options ransacOptions;
-	float eps = 0.002f;
+	float eps = 0.0015f;
 	ransacOptions.m_epsilon = eps * pc.getScale(); // set distance threshold to .01f of bounding box width
 		// NOTE: Internally the distance threshold is taken as 3 * ransacOptions.m_epsilon!!!
-	float b_eps = 0.01f;
-	ransacOptions.m_bitmapEpsilon = b_eps * pc.getScale(); // set bitmap resolution to .02f of bounding box width
+    float b_eps = 0.005f;
+    ransacOptions.m_bitmapEpsilon = b_eps * pc.getScale(); // set bitmap resolution to .02f of bounding box width
+    // ransacOptions.m_bitmapEpsilon = bitmap_precision;
 		// NOTE: This threshold is NOT multiplied internally!
     // ransacOptions.m_normalThresh = .9f; // this is the cos of the maximal normal deviation
     ransacOptions.m_normalThresh = .86f; // this is the cos of the maximal normal deviation

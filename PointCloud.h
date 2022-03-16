@@ -81,8 +81,11 @@ public:
 		std::swap(at(i), at(j));
 	}
 	void calcNormals( float radius, unsigned int kNN = 20, unsigned int maxTries = 100 );
+	float calcNormalsAndBEps( float radius, unsigned int kNN = 20, unsigned int maxTries = 100, unsigned int kNN_BEps = 9 );
 	void reset(size_t s = 0);
 	void adjustBBoxToPoints();
+    float findOptimalBitmapEpsFromMeshes();
+    float findOptimalBitmapEpsFromNN(unsigned int kNN = 9);
     float get_min(size_t dim)
     {
         return std::min_element(begin(), end(), [&dim](const Point p1, const Point p2){return p1[dim] < p2[dim];})[0][dim];

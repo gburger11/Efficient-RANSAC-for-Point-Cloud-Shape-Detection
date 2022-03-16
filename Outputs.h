@@ -41,6 +41,7 @@ class TimeRecorder
 public:
     TimeRecorder();
     void record(std::string label);
+    float get_latest_duration();
 
     std::vector<std::chrono::time_point<std::chrono::high_resolution_clock>> times_;
     std::vector<std::string> time_labels_;

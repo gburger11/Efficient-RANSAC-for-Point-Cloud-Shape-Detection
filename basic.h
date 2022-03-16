@@ -103,6 +103,11 @@ public:
       return dot(*this);
    }
 
+   float sqrDist(const Vec3f other) const
+   {
+       return (other - *this).sqrLength();
+   }
+
    float length () const
    {
       return (float) std::sqrt(dot(*this));

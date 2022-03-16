@@ -178,6 +178,42 @@ void PointCloud::adjustBBoxToPoints()
     m_max = Vec3f(get_max(0), get_max(1), get_max(2));
 }
 
+float PointCloud::findOptimalBitmapEpsFromMeshes()
+{
+    float max_dist_sq = 0.;
+    for (auto const& face: m_faces)
+    {
+        for (int i = 0; i < face.size() - 1; ++i)
+        {
+            float dist_sq = at(face[i]).pos.sqrDist(at(face[i + 1]).pos);
+            max_dist_sq = std::max(max_dist_sq, dist_sq);
+        }
+    }
+    return sqrt(max_dist_sq);
+}
+
+float PointCloud::findOptimalBitmapEpsFromNN(unsigned int kNN)
+{
+	KdTree3Df kd;
+	kd.IndexedData(begin(), end());
+	kd.Build();
+
+	GfxTL::LimitedHeap< GfxTL::NN< float > > nn;
+	KdTree3Df::NearestNeighborsAuxData< value_type > nnAux;
+
+	float max_edge_length_sq = 0.;
+
+	for ( unsigned int i = 0; i < size(); i ++ )
+	{
+		kd.NearestNeighbors(at(i), kNN, &nn, &nnAux);
+        GfxTL::NN<float> nearest_neigh = *std::max_element(
+           nn.begin(), nn.end(),
+           [](const GfxTL::NN<float> n1, const GfxTL::NN<float> n2){return n1.sqrDist < n2.sqrDist;});
+        max_edge_length_sq = std::max(max_edge_length_sq, nearest_neigh.sqrDist);
+    }
+    return sqrt(max_edge_length_sq);
+}
+
 void PointCloud::GetCurrentBBox(Vec3f *min, Vec3f *max) const
 {
 	*min = m_min;
@@ -295,4 +331,116 @@ void PointCloud::calcNormals ( float radius, unsigned int kNN, unsigned int maxT
 
 	//cerr << "End calcNormals " << endl << flush;
 	//copy(stats.begin(), stats.end(), ostream_iterator<int>(cerr, " "));
+}
+
+float PointCloud::calcNormalsAndBEps ( float radius, unsigned int kNN, unsigned int maxTries, unsigned int kNN_BEps )
+{
+//	cerr << "Begin calcNormals " << endl << flush;
+
+	KdTree3Df kd;
+	kd.IndexedData(begin(), end());
+	kd.Build();
+
+	GfxTL::LimitedHeap< GfxTL::NN< float > > nn;
+	KdTree3Df::NearestNeighborsAuxData< value_type > nnAux;
+	//GfxTL::AssumeUniqueLimitedHeap< GfxTL::NN< float > > nn;
+	MiscLib::NoShrinkVector< float > weights;
+
+	float max_edge_length_sq = 0.;
+
+	vector<int> stats(91, 0);
+#ifdef PCA_NORMALS
+	GfxTL::Plane< GfxTL::Vector3Df > plane;
+#endif
+	for ( unsigned int i = 0; i < size(); i ++ )
+	{
+		//kd.PointsInBall(at(i), radius, &nn);
+		//if(nn.size() > kNN)
+		//{
+		//	std::sort(nn.begin(), nn.end());
+		//	nn.resize(kNN);
+		//}
+		kd.NearestNeighbors(at(i), std::max(kNN, kNN_BEps), &nn, &nnAux);
+		unsigned int num = (unsigned int)nn.size();
+
+        // Compute BEps.
+        std::sort(nn.begin(), nn.end(),
+                  [](const GfxTL::NN<float> n1, const GfxTL::NN<float> n2){return n1.sqrDist < n2.sqrDist;});
+        max_edge_length_sq = std::max(max_edge_length_sq, nn[kNN_BEps].sqrDist);
+
+        nn.resize(kNN);  // if kNN_BEps > kNN, resize for the normal calculation
+
+		//if(i%1000 == 0)
+		//	cerr << num << " ";
+
+		if ( num > kNN )
+			num = kNN;
+
+		at(i).normal = Vec3f(0,0,0);
+		if ( num < 8 ) {
+
+			continue;
+		}
+			
+#ifdef PCA_NORMALS
+		weights.resize(nn.size());
+		if(nn.front().sqrDist > 0)
+		{
+			float h = nn.front().sqrDist / 2;
+			for(unsigned int i = 0; i < nn.size(); ++i)
+				weights[i] = std::exp(-nn[i].sqrDist / h);
+		}
+		else
+			std::fill(weights.begin(), weights.end(), 1.f);
+		plane.Fit(GfxTL::IndexIterate(nn.begin(), begin()),
+			GfxTL::IndexIterate(nn.end(), begin()), weights.begin());
+		at(i).normal = Vec3f(plane.Normal().Data());
+#endif
+
+#ifdef LMS_NORMALS
+		float score, bestScore = -1.f;
+		for (unsigned int tries = 0; tries < maxTries; tries++)
+		{
+			//choose candidate
+			int i0, i1, i2;
+			i0 = rand() % num;
+			do 
+				i1 = rand() % num;
+			while (i1 == i0);
+			do
+				i2 = rand() % num;
+			while (i2 == i0 || i2 == i1);
+
+			Plane plane;
+			if(!plane.Init(at(nn[i0]), at(nn[i1]), at(nn[i2])))
+				continue;
+			
+			//evaluate metric
+			float *dist = new float[num];
+			for (unsigned int j = 0; j < num; j++)
+			{
+				dist[j] = plane.getDistance(at(nn[j]));
+			}
+	//		sort(dist, dist+num);
+		//	score = dist[num/2]; // evaluate median
+			score = quick_select(dist, num); // evaluate median
+			delete[] dist;
+
+			if (score < bestScore || bestScore < 0.f)
+			{
+				if ( tries > maxTries/2 ) {
+					// let us see how good the first half of candidates are...
+					int index = std::floor(180/M_PI*std::acos(std::min(1.f, abs(plane.getNormal().dot(at(i).normal)))));
+					stats[index]++;
+				}
+				at(i).normal = plane.getNormal();
+				bestScore = score;
+			}
+
+		}
+			
+#endif
+		
+	}
+	return sqrt(max_edge_length_sq);
 }

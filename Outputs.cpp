@@ -317,6 +317,11 @@ namespace outputs
         time_labels_.push_back(label);
     }
 
+    float TimeRecorder::get_latest_duration()
+    {
+        return (std::chrono::duration<double>(times_.back() - *(times_.end() - 2))).count();
+    }
+
     void write_metadata(
                         std::string file_path,
                         int remaining,
