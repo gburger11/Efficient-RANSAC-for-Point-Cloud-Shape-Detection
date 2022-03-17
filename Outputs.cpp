@@ -230,7 +230,8 @@ namespace outputs
     void write_pointcloud(
                           PointCloud pc,
                           std::string file_path,
-                          MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes
+                          MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes,
+                          bool keep_unassigned
                          )
     {
         std::array<std::vector<float>, 3> coord;
@@ -259,31 +260,31 @@ namespace outputs
                 labels[1].push_back(shape_ind);
             }
         }
-        --i_point;
-        for(; i_point >= 0; --i_point)
+        if (keep_unassigned)
         {
-            for (int c = 0; c < 3; ++c)
+            --i_point;
+            for(; i_point >= 0; --i_point)
             {
-                coord[c].push_back(pc[i_point][c]);
+                for (int c = 0; c < 3; ++c)
+                {
+                    coord[c].push_back(pc[i_point][c]);
+                }
+                labels[0].push_back(std::min(int(shapes.size()), N_shapes_to_save));
+                labels[1].push_back(EXPECTED_SHAPES.size());
             }
-            labels[0].push_back(std::min(int(shapes.size()), N_shapes_to_save));
-            labels[1].push_back(EXPECTED_SHAPES.size());
         }
 
         happly::PLYData plyOut;
-        plyOut.addElement("vertex", pc.size());
+        plyOut.addElement("vertex", coord[0].size());
         plyOut.getElement("vertex").addProperty<float>("x", coord[0]);
         plyOut.getElement("vertex").addProperty<float>("y", coord[1]);
         plyOut.getElement("vertex").addProperty<float>("z", coord[2]);
         plyOut.getElement("vertex").addProperty<int>("shape_ind", labels[0]);
         plyOut.getElement("vertex").addProperty<int>("shape_type", labels[1]);
 
-        // if (plyIn.hasElement("face"))
-        if (pc.getFaces().size() > 0)
+        if (keep_unassigned and pc.getFaces().size() > 0)
         {
-            // std::vector<std::vector<int>> facesIn = plyIn.getElement("face").getListProperty<int>("vertex_indices");
             std::vector<std::vector<int>> facesOut;
-            // facesOut.reserve(facesIn.size());
             facesOut.reserve(pc.getFaces().size());
 
             std::vector<size_t> inversion_map(pc.size(), 0);
@@ -292,8 +293,6 @@ namespace outputs
                 inversion_map[pc[i].index] = pc.size() - 1 - i;
             }
 
-
-            // for (std::vector<int> const& face : facesIn)
             for (std::vector<int> const& face : pc.getFaces())
             {
                 std::vector<int> new_face = {inversion_map[face[0]], inversion_map[face[1]], inversion_map[face[2]]};

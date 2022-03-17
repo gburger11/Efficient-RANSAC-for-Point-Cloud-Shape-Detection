@@ -63,6 +63,7 @@ public:
 	PointCloud();
 	PointCloud(Point *points, unsigned int size);
 	PointCloud(std::string file_path);
+	void write(std::string file_path);
 	PointCloud &operator+=(const PointCloud &other)
 	{
 		size_t oldSize = size();
@@ -80,6 +81,8 @@ public:
 	{
 		std::swap(at(i), at(j));
 	}
+    void addGaussianNoise(float standard_dev);
+    void addOutliers(int N);
 	void calcNormals( float radius, unsigned int kNN = 20, unsigned int maxTries = 100 );
 	float calcNormalsAndBEps( float radius, unsigned int kNN = 20, unsigned int maxTries = 100, unsigned int kNN_BEps = 9 );
 	void reset(size_t s = 0);

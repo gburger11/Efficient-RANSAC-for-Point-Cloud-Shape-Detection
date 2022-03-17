@@ -6,6 +6,7 @@
 #include <fstream>
 #include <limits>
 #include <algorithm>
+#include <random>
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
 #endif
@@ -154,6 +155,35 @@ PointCloud::PointCloud(std::string file_path)
     }
 }
 
+void PointCloud::write(std::string file_path)
+{
+    std::array<std::vector<float>, 3> coord;
+    for(int c = 0; c < 3; ++c)
+        coord[c].reserve(size());
+
+    for (Point& point : *this)
+    {
+        for (int c = 0; c < 3; ++c)
+        {
+            coord[c].push_back(point.pos[c]);
+        }
+    }
+
+    happly::PLYData plyOut;
+    plyOut.addElement("vertex", size());
+    plyOut.getElement("vertex").addProperty<float>("x", coord[0]);
+    plyOut.getElement("vertex").addProperty<float>("y", coord[1]);
+    plyOut.getElement("vertex").addProperty<float>("z", coord[2]);
+
+    if (getFaces().size() > 0)
+    {
+        plyOut.addElement("face", getFaces().size());
+        plyOut.getElement("face").addListProperty<int>("vertex_indices", getFaces());
+    }
+
+    plyOut.write(file_path);
+}
+
 void PointCloud::reset(size_t s)
 {
 	resize(s);
@@ -170,6 +200,38 @@ float *PointCloud::getBbox () const
 	m_max.getValue(bbox[1], bbox[3], bbox[5]);
 
 	return bbox;
+}
+
+void PointCloud::addGaussianNoise(float standard_dev)
+{
+    std::default_random_engine generator;
+    std::normal_distribution<float> distribution(0., standard_dev);
+    for (Point& p: *this)
+    {
+        for (size_t c = 0; c < 3; ++c)
+        {
+            p.pos[c] += distribution(generator);
+        }
+    }
+}
+
+void PointCloud::addOutliers(int N)
+{
+    std::default_random_engine generator;
+    std::array<std::uniform_real_distribution<float>, 3> distributions;
+    size_t previous_size = size();
+    for (size_t c = 0; c < 3; ++c)
+    {
+        distributions[c] = std::uniform_real_distribution<float>(m_min[c], m_max[c]);
+    }
+    for (int i = 0; i < N; ++i)
+    {
+        push_back(Point(Vec3f(distributions[0](generator),
+                              distributions[1](generator),
+                              distributions[2](generator))));
+    }
+    for (size_t i = previous_size; i < size(); ++i)
+        at(i).index = i;
 }
 
 void PointCloud::adjustBBoxToPoints()

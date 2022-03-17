@@ -22,7 +22,8 @@ void write_pointcloud_projected(
 void write_pointcloud(
     PointCloud pc,
     std::string file_path,
-    MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes
+    MiscLib::Vector< std::pair< MiscLib::RefCountPtr< PrimitiveShape >, size_t > > shapes,
+    bool keep_unassigned = true
     );
 
 void write_pointcloud_shapes(
