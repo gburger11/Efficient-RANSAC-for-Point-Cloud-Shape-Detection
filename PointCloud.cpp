@@ -263,7 +263,8 @@ float PointCloud::findOptimalBitmapEpsFromNN(unsigned int kNN)
 	GfxTL::LimitedHeap< GfxTL::NN< float > > nn;
 	KdTree3Df::NearestNeighborsAuxData< value_type > nnAux;
 
-	float max_edge_length_sq = 0.;
+    std::vector<float> edge_lengths;
+    edge_lengths.reserve(size());
 
 	for ( unsigned int i = 0; i < size(); i ++ )
 	{
@@ -271,9 +272,19 @@ float PointCloud::findOptimalBitmapEpsFromNN(unsigned int kNN)
         GfxTL::NN<float> nearest_neigh = *std::max_element(
            nn.begin(), nn.end(),
            [](const GfxTL::NN<float> n1, const GfxTL::NN<float> n2){return n1.sqrDist < n2.sqrDist;});
-        max_edge_length_sq = std::max(max_edge_length_sq, nearest_neigh.sqrDist);
+        edge_lengths.push_back(sqrt(nearest_neigh.sqrDist));
     }
-    return sqrt(max_edge_length_sq);
+    std::sort(edge_lengths.begin(), edge_lengths.end());
+    float q1 = edge_lengths[std::floor(size() / 4)];
+    float q3 = edge_lengths[std::floor(3 * size() / 4)];
+    float upper_fence = q3 + 1.5 * (q3 - q1);
+    auto beps_ptr = std::lower_bound(edge_lengths.begin(), edge_lengths.end(), upper_fence);
+    if (beps_ptr == edge_lengths.end())
+    {
+        std::cout << "No outliers found in the point cloud" << std::endl;
+        return edge_lengths.back();
+    }
+	return *beps_ptr;
 }
 
 void PointCloud::GetCurrentBBox(Vec3f *min, Vec3f *max) const
@@ -408,7 +419,8 @@ float PointCloud::calcNormalsAndBEps ( float radius, unsigned int kNN, unsigned 
 	//GfxTL::AssumeUniqueLimitedHeap< GfxTL::NN< float > > nn;
 	MiscLib::NoShrinkVector< float > weights;
 
-	float max_edge_length_sq = 0.;
+    std::vector<float> edge_lengths;
+    edge_lengths.reserve(size());
 
 	vector<int> stats(91, 0);
 #ifdef PCA_NORMALS
@@ -428,7 +440,7 @@ float PointCloud::calcNormalsAndBEps ( float radius, unsigned int kNN, unsigned 
         // Compute BEps.
         std::sort(nn.begin(), nn.end(),
                   [](const GfxTL::NN<float> n1, const GfxTL::NN<float> n2){return n1.sqrDist < n2.sqrDist;});
-        max_edge_length_sq = std::max(max_edge_length_sq, nn[kNN_BEps].sqrDist);
+        edge_lengths.push_back(sqrt(nn[kNN_BEps - 1].sqrDist));
 
         nn.resize(kNN);  // if kNN_BEps > kNN, resize for the normal calculation
 
@@ -504,5 +516,17 @@ float PointCloud::calcNormalsAndBEps ( float radius, unsigned int kNN, unsigned 
 #endif
 		
 	}
-	return sqrt(max_edge_length_sq);
+
+    // Compute the resolution of the bitmap from the nearest neighbors distances found.
+    std::sort(edge_lengths.begin(), edge_lengths.end());
+    float q1 = edge_lengths[std::floor(size() / 4)];
+    float q3 = edge_lengths[std::floor(3 * size() / 4)];
+    float upper_fence = q3 + 1.5 * (q3 - q1);
+    auto beps_ptr = std::lower_bound(edge_lengths.begin(), edge_lengths.end(), upper_fence);
+    if (beps_ptr == edge_lengths.end())
+    {
+        std::cout << "No outliers found in the point cloud" << std::endl;
+        return edge_lengths.back();
+    }
+	return *beps_ptr;
 }
