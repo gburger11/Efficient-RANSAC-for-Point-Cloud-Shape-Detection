@@ -81,22 +81,29 @@ public:
 	{
 		std::swap(at(i), at(j));
 	}
-    void addGaussianNoise(float standard_dev);
-    void addOutliers(int N);
+    void addGaussianNoise(float standard_dev);  // Add gaussian white noise to the point cloud.
+    void addOutliers(int N);  // Add N outliers contained in the bounding box (make sure to correctly define it before).
 	void calcNormals( float radius, unsigned int kNN = 20, unsigned int maxTries = 100 );
+	// Compute the normals and the bitmap resolution in one launch
+	// Use the `kNN_BEps` -1 closest neighbors (-1 because the point itself is included in its nearest neighbors).
 	float calcNormalsAndBEps( float radius, unsigned int kNN = 20, unsigned int maxTries = 100, unsigned int kNN_BEps = 9 );
 	void reset(size_t s = 0);
+	// Adjust the bounding box to surround the points.
 	void adjustBBoxToPoints();
-    float findOptimalBitmapEpsFromMeshes();
-    float findOptimalBitmapEpsFromNN(unsigned int kNN = 9);
+	// Get the minimal value of the coordinates `dim` in the point cloud (used to find the bounding box).
     float get_min(size_t dim)
     {
         return std::min_element(begin(), end(), [&dim](const Point p1, const Point p2){return p1[dim] < p2[dim];})[0][dim];
     }
+	// Get the maximal value of the coordinates `dim` in the point cloud (used to find the bounding box).
     float get_max(size_t dim)
     {
         return std::max_element(begin(), end(), [&dim](const Point p1, const Point p2){return p1[dim] < p2[dim];})[0][dim];
     }
+	// Find the bitmap resolution with finding the biggest edge in the meshes.
+    float findOptimalBitmapEpsFromMeshes();
+	// Find the bitmap resolution using the distance between each points and their nearest neighbors.
+    float findOptimalBitmapEpsFromNN(unsigned int kNN = 9);
 	void setBBox (Vec3f bbl, float size) { m_min = bbl; m_max = m_min + Vec3f(size,size,size); }
 	void setBBox (Vec3f min, Vec3f max) { m_min = min; m_max = max; }
 	void widenBBox (float delta) { Vec3f d(delta,delta,delta); m_min -=d; m_max += d; }
@@ -105,6 +112,7 @@ public:
 	   Vec3f diff = m_max - m_min;
 	   return std::max(std::max(diff[0], diff[1]), diff[2]);
 	}
+	// Getter for the faces in the pointcloud (if the input pointcloud contained meshes).
     std::vector<std::vector<int>> const& getFaces() const { return m_faces ; }
 	const Vec3f &getOffset() const { return m_min; }
 	float *getBbox () const;
