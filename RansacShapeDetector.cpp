@@ -109,15 +109,28 @@ void RansacShapeDetector::GenerateCandidates(
 		// pick a sample level
 		double s = ((double)rand()) / (double)RAND_MAX;
 		size_t sampleLevel = 0;
+		///////////////////////////////////////////////////////////////////
+		// FOR LOOP TO COMMENT TO DEACTIVATE THE LOCAL SAMPLING ON OCTREES
+		///////////////////////////////////////////////////////////////////
 		for(; sampleLevel < sampleLevelProbSum.size() - 1; ++sampleLevel)
 			if(sampleLevelProbSum[sampleLevel] >= s)
 				break;
 		// draw samples on current sample level in octree
 		MiscLib::Vector< size_t > samples;
 		const IndexedOctreeType::CellType *node;
-		if(!DrawSamplesStratified(globalOctree, m_reqSamples, sampleLevel,
-			scoreVisitorCopy.GetShapeIndex(), &samples, &node))
-			continue;
+
+		///////////////////////////////////////////////////////////////////
+		// USE FIRST BLOCK TO DEACTIVATE THE LOCAL SAMPLING ON OCTREES
+		///////////////////////////////////////////////////////////////////
+        // if(!DrawSamplesRandom(globalOctree, m_reqSamples, sampleLevel,
+            // scoreVisitorCopy.GetShapeIndex(), &samples, &node))
+        // {
+            // continue;
+        // }
+        if(!DrawSamplesStratified(globalOctree, m_reqSamples, sampleLevel,
+            scoreVisitorCopy.GetShapeIndex(), &samples, &node))
+            continue;
+
 		++genCands;
 		// construct the candidates
 		size_t c = samples.size();
@@ -465,7 +478,12 @@ RansacShapeDetector::Detect(PointCloud &pc, size_t beginIdx, size_t endIdx,
 			m_options.m_normalThresh);
 
 	// construct random subsets
-	size_t subsets = std::max(int(std::floor(std::log((float)pcSize)/std::log(2.f)))-9, 2);
+	/////////////////////////////////////////////////////
+	// TO SET TO 1 TO REMOVE THE PRE-SCORING ON SUBSETS
+	/////////////////////////////////////////////////////
+    size_t subsets = std::max(int(std::floor(std::log((float)pcSize)/std::log(2.f)))-9, 2);
+    // size_t subsets = 1;
+
 	GfxTL::AACube< GfxTL::Vector3Df > bcube;
 	bcube.Bound(pc.begin() + beginIdx, pc.begin() + endIdx); 
 
@@ -933,6 +951,39 @@ bool RansacShapeDetector::DrawSamplesStratified(const IndexedOctreeType &oct,
 
 		if(samples->size() == numSamples)
 			return true;
+	}
+	return false;
+}
+
+bool RansacShapeDetector::DrawSamplesRandom(const IndexedOctreeType &oct,
+	size_t numSamples, size_t depth,
+	const MiscLib::Vector< int > &shapeIndex,
+	MiscLib::Vector< size_t > *samples,
+	const IndexedOctreeType::CellType **node) const
+{
+	for(size_t tries = 0; tries < m_maxCandTries; tries++)
+	{
+        samples->clear();
+		while(samples->size() < numSamples)
+		{
+			size_t i, iter = 0;
+			do
+			{
+				i = oct.Dereference(rn_rand() % oct.size());
+			}
+			while( ( shapeIndex[i] != -1
+					|| std::find(samples->begin(), samples->end(), i) != samples->end() )
+					&& iter++ < 40);
+			if(iter >= 40)
+				break;
+			samples->push_back(i);
+		}
+		if(samples->size() == numSamples)
+        {
+            std::pair< size_t, size_t > nodeRange;
+            *node = oct.NodeContainingPoint(oct.at(samples->front()), 0, numSamples, &nodeRange);
+			return true;
+        }
 	}
 	return false;
 }

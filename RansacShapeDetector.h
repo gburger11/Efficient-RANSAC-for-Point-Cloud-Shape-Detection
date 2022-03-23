@@ -53,6 +53,11 @@ class DLL_LINKAGE RansacShapeDetector
 			const MiscLib::Vector< int > &shapeIndex,
 			MiscLib::Vector< size_t > *samples,
 			const IndexedOctreeType::CellType **node) const;
+		bool DrawSamplesRandom(const IndexedOctreeType &oct,
+			size_t numSamples, size_t depth,
+			const MiscLib::Vector< int > &shapeIndex,
+			MiscLib::Vector< size_t > *samples,
+			const IndexedOctreeType::CellType **node) const;
 		PrimitiveShape *Fit(bool allowDifferentShapes,
 			const PrimitiveShape &initialShape, const PointCloud &pc,
 			MiscLib::Vector< size_t >::const_iterator begin,
@@ -61,9 +66,15 @@ class DLL_LINKAGE RansacShapeDetector
 		float CandidateFailureProbability(float candidateSize,
 			float numberOfPoints, float drawnCandidates, float levels) const
 		{
-			return std::min(std::pow(1.f - candidateSize
-				/ (numberOfPoints * levels * (1 << (m_reqSamples - 1))),
-				drawnCandidates), 1.f);
+            ///////////////////////////////////////////////////////////////////
+            // USE SECOND FORMULA WHEN DEACTIVATING THE LOCAL SAMPLING ON OCTREES
+            ///////////////////////////////////////////////////////////////////
+            return std::min(std::pow(1.f - candidateSize
+                / (numberOfPoints * levels * (1 << (m_reqSamples - 1))),
+                drawnCandidates), 1.f);
+            // return std::min((float) std::pow(1.f - std::pow(candidateSize / numberOfPoints, m_reqSamples),
+                                             // drawnCandidates),
+                            // 1.f);
 		}
 		float UpdateAcceptedFailureProbability(
 			float currentFailureProbability, size_t numTries) const
