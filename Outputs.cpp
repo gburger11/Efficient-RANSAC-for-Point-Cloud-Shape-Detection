@@ -100,6 +100,41 @@ namespace outputs
                 }
             }
 
+            // We fill-in the small holes. An empty pixel surronded by occupied pixel is considered as occupied (by a
+            // point in its middle).
+            for(size_t v = 1; v < bitmapInfo.vextent - 1; ++v)
+            {
+                for (size_t u = 1; u < bitmapInfo.uextent - 1; ++u)
+                {
+                    if (not bitmap[u + v * rl])
+                    {
+                        if (bitmap[u - 1 + v * rl] && bitmap[u - 1 + (v - 1) * rl] && bitmap[u - 1 + (v + 1) * rl] &&
+                            bitmap[u + 1 + v * rl] && bitmap[u + 1 + (v - 1) * rl] && bitmap[u + 1 + (v + 1) * rl] &&
+                            bitmap[u + (v - 1) * rl] && bitmap[u + (v + 1) * rl]
+                           )
+                        {
+                            bitmap_indices[u + v * rl] = idx_point;
+                            ++idx_point;
+
+                            bitmap[u + v * rl] = true;
+                            Vec3f p;
+                            Vec3f n;
+                            bps->InSpace(u, v, ransacOptions.m_bitmapEpsilon, bitmapInfo.bbox, bitmapInfo.uextent, bitmapInfo.vextent, &p, &n);
+                            for (int c = 0; c < 3; ++c)
+                            {
+                                if (std::isnan(p[c]))
+                                {
+                                    std::cerr << "NaN value detected. One point will be at the wrong place" << std::endl;
+                                }
+                                coord[c].push_back(p[c]);
+                            }
+                            labels[0].push_back(i);
+                            labels[1].push_back(shape_ind);
+                        }
+                    }
+                }
+            }
+
             for(size_t v = 0; v < bitmapInfo.vextent - 1; ++v)
             {
                 for (size_t u = 0; u < bitmapInfo.uextent - 1; ++u)
